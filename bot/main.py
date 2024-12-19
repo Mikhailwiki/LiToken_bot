@@ -7,43 +7,41 @@ import sys
 import time
 from aiogram import Bot, Dispatcher, filters, F
 from aiogram.utils import keyboard
-from dotenv import load_dotenv
-from bot.db_operations import Database
+from db_manager import Database
 from utils import make_qrcode, agree_with_num, get_table
 from bot.keyboards import *
 from bot.middlewares.trottling import ThrottlingMiddleware
 
 nest_asyncio.apply()
-load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
 admins = os.getenv('ADMINS').split(',')
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 logger = logging.getLogger(__name__)
-database = Database('../data/users.db')
+database = Database('Users', os.getenv('USER_STORAGE_URL'), os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'))
 
 
 async def correct_user(message: types.Message) -> bool:
     """Проверяем зарегистрирован ли пользователь и обновляем username(если он был изменен)"""
-    if not await database.user_exist(message.from_user.id):
+    if not database.user_exist(message.from_user.id):
         await message.answer('Вы не зарегистрированы')
         return False
     if message.from_user.username is None:
         await message.answer('@username не должен быть пустым')
         return False
-    if not await database.is_username_correct(message.from_user.id, message.from_user.username):
-        await database.update_username(message.from_user.id, message.from_user.username)
+    if not database.is_username_correct(message.from_user.id, message.from_user.username):
+        database.update_username(message.from_user.id, message.from_user.username)
     return True
 
 
 @dp.message(filters.Command('start'))
 async def cmd_start(message: types.Message):
-    if not await database.user_exist(message.from_user.id):
+    if not database.user_exist(message.from_user.id):
         await register_user(message)
         await message.answer('Вы успешно зарегистрированы')
-    if not await database.is_username_correct(message.from_user.id, message.from_user.username):
-        await database.update_username(message.from_user.id, message.from_user.username)
+    if not database.is_username_correct(message.from_user.id, message.from_user.username):
+        database.update_username(message.from_user.id, message.from_user.username)
     if message.from_user.username is None:
         await message.answer('@username не должен быть пустым')
         return False
@@ -62,7 +60,7 @@ async def cmd_help(message: types.Message):
     await message.answer('''
 Привет в это боте ты можешь обмениваться токенами посредством сканирования qr кодов 
 /start - если нет кнопки баланса
-/get <количество> для получения qr кода на получение определенного количества монет, например:
+/get <количество> для получения qr кода на запрос определенного количества монет, например:
 /get 50
 Если бот не отвечает - нужно подождать
 delay = 2 сек''')
@@ -96,7 +94,7 @@ dp.message.register(cmd_get, filters.Command('get'))
 async def show_balance(message: types.Message):
     if not await correct_user(message):
         return
-    balance = await database.get_balance(message.from_user.id)
+    balance = database.get_balance(message.from_user.id)
     await message.answer(f'На вашем балансе {balance} {await agree_with_num("Токен", balance)}')
 
 
@@ -109,7 +107,7 @@ async def cmd_send(message: types.Message):
     args = message.text
     to_id, amount = int(args.split('_')[1]), int(args.split('_')[2])
     id_ = message.from_user.id
-    if not await database.user_exist(to_id):
+    if not database.user_exist(to_id):
         await message.answer('Такого пользователя не существует')
         return
     confirm_builder = keyboard.InlineKeyboardBuilder().add(types.InlineKeyboardButton(
@@ -117,7 +115,7 @@ async def cmd_send(message: types.Message):
         callback_data=f'confirm_{id_}_{to_id}_{amount}')
     )
     await message.answer(
-        f'Вы точно хотите отправить пользователю @{await database.get_username(to_id)} отправить {amount} {await agree_with_num("Токенов", int(amount))}',
+        f'Вы точно хотите отправить пользователю @{database.get_username(to_id)} отправить {amount} {await agree_with_num("Токенов", int(amount))}',
         reply_markup=confirm_builder.as_markup()
     )
 
@@ -128,9 +126,9 @@ async def send_tokens(callback: types.CallbackQuery):
     id_ = int(args[1])
     to_id = int(args[2])
     amount = int(args[3])
-    if await database.transaction(id_, to_id, amount):
+    if database.transaction(id_, to_id, amount):
         await callback.message.edit_text(
-            f'Пользователю @{await database.get_username(to_id)} отправлено {amount} {await agree_with_num("Токенов", int(amount))}')
+            f'Пользователю @{database.get_username(to_id)} отправлено {amount} {await agree_with_num("Токенов", int(amount))}')
         await bot.send_message(chat_id=to_id,
                                text=f'Получено {amount} {await agree_with_num("Токенов", int(amount))} от @{callback.from_user.username}')
     else:
@@ -145,7 +143,7 @@ async def register_user(message: types.Message):
     username = message.from_user.username
     chat_id = message.from_user.id
     coins = 500
-    await database.add_user(chat_id, coins, username)
+    database.add_user(chat_id, coins, username)
 
 
 @dp.message(filters.Command('add'))
@@ -159,11 +157,11 @@ async def cmd_add(message: types.Message):
     if message.from_user.username in admins:
         amount = int(data[1])
         username = data[-1]
-        id_ = await database.get_chat_id(username)
-        if not await database.user_exist(id_):
+        id_ = database.get_chat_id(username)
+        if not database.user_exist(id_):
             await message.answer('Такого пользователя не существует')
             return
-        await database.add_coins(id_, amount)
+        database.add_coins(id_, amount)
         await message.answer(
             f'Пользователю @{username} успешно добавлено {amount} {await agree_with_num("Токенов", int(amount))}')
     else:
@@ -184,11 +182,11 @@ async def cmd_sub(message: types.Message):
     if message.from_user.username in admins:
         amount = int(data[1])
         username = data[-1]
-        id_ = await database.get_chat_id(username)
-        if not await database.user_exist(id_):
+        id_ = database.get_chat_id(username)
+        if not database.user_exist(id_):
             await message.answer('Такого пользователя не существует')
             return
-        await database.subtract_coins(id_, amount)
+        database.subtract_coins(id_, amount)
         await message.answer(
             f'У пользователя @{username} успешно вычтено {amount} {await agree_with_num("Токенов", int(amount))}')
     else:

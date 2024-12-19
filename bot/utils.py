@@ -1,11 +1,13 @@
 import io
+import os
 import qrcode
 import pymorphy3
 
 from openpyxl import Workbook
-from bot.db_operations import Database
+from db_manager import Database
 
-database = Database('../data/users.db')
+database = Database('Users', os.getenv('USER_STORAGE_URL'), os.getenv('AWS_ACCESS_KEY_ID'),
+                    os.getenv('AWS_SECRET_ACCESS_KEY'))
 
 
 async def make_qrcode(to_chat_id: int, amount: int) -> io.BytesIO:
@@ -27,11 +29,11 @@ async def get_table() -> io.BytesIO:
     ws = wb.active
     ws.title = 'Пользователи и балансы'
 
-    table = await database.get_data()
+    table = database.get_data()
     for row, (coins, username) in enumerate(table):
         row += 1
         ws[f'A{row}'] = username
-        ws[f'B{row}'] = coins
+        ws[f'B{row}'] = str(coins)
 
     excel_file = io.BytesIO()
     wb.save(excel_file)
