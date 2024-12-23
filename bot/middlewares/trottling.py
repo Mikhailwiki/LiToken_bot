@@ -6,7 +6,7 @@ from cachetools import TTLCache
 
 
 class ThrottlingMiddleware(BaseMiddleware):
-    def __init__(self, time_limit: int=2):
+    def __init__(self, time_limit: int = 2):
         self.limit = TTLCache(maxsize=10_000, ttl=time_limit)
 
     async def __call__(

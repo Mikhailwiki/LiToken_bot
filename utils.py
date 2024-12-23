@@ -1,17 +1,12 @@
 import io
-import os
 import qrcode
 import pymorphy3
 
 from openpyxl import Workbook
-from db_manager import Database
-
-database = Database('Users', os.getenv('USER_STORAGE_URL'), os.getenv('AWS_ACCESS_KEY_ID'),
-                    os.getenv('AWS_SECRET_ACCESS_KEY'))
 
 
 async def make_qrcode(to_chat_id: int, amount: int) -> io.BytesIO:
-    url = f'https://t.me/@LiToken_bot?start=send_{to_chat_id}_{amount}'
+    url = f'https://t.me/LiToken_bot?start=send_{to_chat_id}_{amount}'
     qrcode_img = qrcode.make(url)
     buf = io.BytesIO()
     qrcode_img.save(buf)
@@ -24,12 +19,11 @@ async def agree_with_num(word: str, number: int) -> str:
     return morph.parse(word)[0].make_agree_with_number(number).word
 
 
-async def get_table() -> io.BytesIO:
+async def get_table(table) -> io.BytesIO:
     wb = Workbook()
     ws = wb.active
     ws.title = 'Пользователи и балансы'
 
-    table = database.get_data()
     for row, (coins, username) in enumerate(table):
         row += 1
         ws[f'A{row}'] = username

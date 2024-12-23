@@ -2,16 +2,16 @@ import os
 import asyncio
 import nest_asyncio
 import logging
-import json
 import sys
-import time
 from aiogram import Bot, Dispatcher, filters, F
 from aiogram.utils import keyboard
+from dotenv import load_dotenv
 from db_manager import Database
 from utils import make_qrcode, agree_with_num, get_table
 from bot.keyboards import *
 from bot.middlewares.trottling import ThrottlingMiddleware
 
+load_dotenv()
 nest_asyncio.apply()
 TOKEN = os.getenv('BOT_TOKEN')
 admins = os.getenv('ADMINS').split(',')
@@ -19,7 +19,8 @@ admins = os.getenv('ADMINS').split(',')
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 logger = logging.getLogger(__name__)
-database = Database('Users', os.getenv('USER_STORAGE_URL'), os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY'))
+database = Database('Users', os.getenv('USER_STORAGE_URL'), os.getenv('AWS_ACCESS_KEY_ID'),
+                    os.getenv('AWS_SECRET_ACCESS_KEY'))
 
 
 async def correct_user(message: types.Message) -> bool:
@@ -37,14 +38,15 @@ async def correct_user(message: types.Message) -> bool:
 
 @dp.message(filters.Command('start'))
 async def cmd_start(message: types.Message):
+    if message.from_user.username is None:
+        await message.answer('@username не должен быть пустым')
+        return
     if not database.user_exist(message.from_user.id):
         await register_user(message)
         await message.answer('Вы успешно зарегистрированы')
     if not database.is_username_correct(message.from_user.id, message.from_user.username):
         database.update_username(message.from_user.id, message.from_user.username)
-    if message.from_user.username is None:
-        await message.answer('@username не должен быть пустым')
-        return False
+
     if message.text.split('_')[0].startswith('/start send'):
         await cmd_send(message)
     else:
@@ -115,7 +117,7 @@ async def cmd_send(message: types.Message):
         callback_data=f'confirm_{id_}_{to_id}_{amount}')
     )
     await message.answer(
-        f'Вы точно хотите отправить пользователю @{database.get_username(to_id)} отправить {amount} {await agree_with_num("Токенов", int(amount))}',
+        f'Вы точно хотите отправить пользователю @{database.get_username(to_id)} {amount} {await agree_with_num("Токенов", int(amount))}',
         reply_markup=confirm_builder.as_markup()
     )
 
@@ -186,9 +188,17 @@ async def cmd_sub(message: types.Message):
         if not database.user_exist(id_):
             await message.answer('Такого пользователя не существует')
             return
-        database.subtract_coins(id_, amount)
+        if database.get_transaction_verdict(id_, amount):
+            database.subtract_coins(id_, amount)
+            cur_balance = amount
+        else:
+            cur_balance = database.get_balance(id_)
+            database.subtract_coins(id_, cur_balance)
+            await message.answer(
+                f'Вычитаемый баланс превышает действительный. Баланс обнулен'
+            )
         await message.answer(
-            f'У пользователя @{username} успешно вычтено {amount} {await agree_with_num("Токенов", int(amount))}')
+            f'У пользователя @{username} успешно вычтено {cur_balance} {await agree_with_num("Токенов", int(amount))}')
     else:
         await message.answer('У вас нет прав для этой команды')
 
@@ -200,7 +210,11 @@ dp.message.register(cmd_sub, filters.Command('sub'))
 async def cmd_table(message: types.Message):
     if not await correct_user(message):
         return
-    excel_file = await get_table()
+    if message.from_user.username not in admins:
+        await message.answer('У вас нет прав для этой команды')
+        return
+
+    excel_file = await get_table(database.get_data())
     await message.answer_document(
         document=types.BufferedInputFile(excel_file.read(), filename='пользователи и балансы.xlsx'))
     excel_file.close()
@@ -217,23 +231,9 @@ async def main():
     await dp.start_polling(bot)
 
 
-async def yc_handler(event: dict[str], context=None):
-    body = json.loads(event["body"])
-
-    if "message" in body.keys():
-        mess = body["message"]
-    elif "edited_message" in body.keys():
-        mess = body["edited_message"]
-    else:
-        print(body.keys())
-        raise KeyError
-
-    result = await dp.feed_raw_update(bot, body)
-    log_message = f"Processed event at {time.strftime('%X')}. User ID [{mess['from']['id']}]. Result: <{result}>"
-    logger.info(log_message)
-    return {"statusCode": 200, "body": log_message}
-
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Exit')
