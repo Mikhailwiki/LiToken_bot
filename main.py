@@ -81,12 +81,12 @@ async def cmd_get(message: types.Message):
         return
     to_id = message.from_user.id
     amount = int(data[1])
-    buf = await make_qrcode(to_id, amount)
+    buf, url = await make_qrcode(to_id, amount)
     await message.answer_photo(
         photo=types.BufferedInputFile(
             file=buf.getvalue(),
             filename=f"{message.from_user.first_name}-profile.png",
-        ), caption=f'QR code на получение {amount} {await agree_with_num("Токенов", amount)}')
+        ), caption=f'QR code на получение {amount} {await agree_with_num("Токенов", amount)}\n{url}')
 
 
 dp.message.register(cmd_get, filters.Command('get'))
@@ -106,8 +106,11 @@ dp.message.register(show_balance, F.text == 'Баланс💵')
 async def cmd_send(message: types.Message):
     if not await correct_user(message):
         return
-    args = message.text
-    to_id, amount = int(args.split('_')[1]), int(args.split('_')[2])
+    args = message.text.split('_')
+    if len(args) != 3 or not args[1].isdigit() or not args[2].isdigit():
+        await message.answer('Неверная ссылка')
+        return
+    to_id, amount = int(args[1]), int(args[2])
     id_ = message.from_user.id
     if not database.user_exist(to_id):
         await message.answer('Такого пользователя не существует')

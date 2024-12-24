@@ -5,13 +5,13 @@ import pymorphy3
 from openpyxl import Workbook
 
 
-async def make_qrcode(to_chat_id: int, amount: int) -> io.BytesIO:
+async def make_qrcode(to_chat_id: int, amount: int):
     url = f'https://t.me/LiToken_bot?start=send_{to_chat_id}_{amount}'
     qrcode_img = qrcode.make(url)
     buf = io.BytesIO()
     qrcode_img.save(buf)
     buf.seek(0)
-    return buf
+    return buf, url
 
 
 async def agree_with_num(word: str, number: int) -> str:
