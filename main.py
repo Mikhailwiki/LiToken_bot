@@ -14,6 +14,7 @@ from bot.middlewares.trottling import ThrottlingMiddleware
 load_dotenv()
 nest_asyncio.apply()
 TOKEN = os.getenv('BOT_TOKEN')
+TOKEN = '8168257437:AAGQJJXPRAb2GFgrYnjHo1BDv8hYIzI9ze8'
 admins = os.getenv('ADMINS').split(',')
 
 bot = Bot(token=TOKEN)
@@ -51,11 +52,11 @@ async def cmd_start(message: types.Message):
         await cmd_send(message)
     else:
         await message.reply('''
-        Привет! В этом боте вы можете обмениваться токенами. Для получения подробной информации и инструкций по использованию бота, пропишите команду \n/help.
-        ''', reply_markup=keyboard_balance)
+        Привет! В этом боте вы можете обмениваться токенами. Для получения подробной информации и инструкций по использованию бота, нажмите 'Помощь📖'.
+        ''', reply_markup=keyboard_start)
 
 
-@dp.message(filters.Command('help'))
+@dp.message(F.text == 'Помощь📖')
 async def cmd_help(message: types.Message):
     if not await correct_user(message):
         return

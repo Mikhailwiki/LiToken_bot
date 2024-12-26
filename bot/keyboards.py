@@ -1,6 +1,8 @@
 from aiogram import types
 
-kb_balance = [
-    [types.KeyboardButton(text='Баланс💵')]
+kb_start = [
+    [types.KeyboardButton(text='Баланс💵')],
+    [types.KeyboardButton(text='Помощь📖')]
 ]
-keyboard_balance = types.ReplyKeyboardMarkup(keyboard=kb_balance, resize_keyboard=True)
+
+keyboard_start = types.ReplyKeyboardMarkup(keyboard=kb_start, resize_keyboard=True)
