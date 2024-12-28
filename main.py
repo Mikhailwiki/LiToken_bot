@@ -68,9 +68,6 @@ async def cmd_help(message: types.Message):
 delay = 2 сек''')
 
 
-dp.message.register(cmd_help, filters.Command('help'))
-
-
 @dp.message(filters.Command('get'))
 async def cmd_get(message: types.Message):
     if not await correct_user(message):
@@ -89,18 +86,12 @@ async def cmd_get(message: types.Message):
         ), caption=f'QR code на получение {amount} {await agree_with_num("Токенов", amount)}\n{url}')
 
 
-dp.message.register(cmd_get, filters.Command('get'))
-
-
 @dp.message(F.text == 'Баланс💵')
 async def show_balance(message: types.Message):
     if not await correct_user(message):
         return
     balance = database.get_balance(message.from_user.id)
     await message.answer(f'На вашем балансе {balance} {await agree_with_num("Токен", balance)}')
-
-
-dp.message.register(show_balance, F.text == 'Баланс💵')
 
 
 async def cmd_send(message: types.Message):
@@ -140,14 +131,11 @@ async def send_tokens(callback: types.CallbackQuery):
         await callback.message.edit_text('Недостаточно средств')
 
 
-dp.message.register(send_tokens, F.data.startswith('confirm_'))
-
-
 async def register_user(message: types.Message):
     """Добавляем id чата, username и стартовое количество токенов(500)"""
     username = message.from_user.username
     chat_id = message.from_user.id
-    coins = 500
+    coins = 0
     database.add_user(chat_id, coins, username)
 
 
@@ -171,9 +159,6 @@ async def cmd_add(message: types.Message):
             f'Пользователю @{username} успешно добавлено {amount} {await agree_with_num("Токенов", int(amount))}')
     else:
         await message.answer('У вас нет прав для этой команды')
-
-
-dp.message.register(cmd_add, filters.Command('add'))
 
 
 @dp.message(filters.Command('sub'))
@@ -206,9 +191,6 @@ async def cmd_sub(message: types.Message):
         await message.answer('У вас нет прав для этой команды')
 
 
-dp.message.register(cmd_sub, filters.Command('sub'))
-
-
 @dp.message(filters.Command('table'))
 async def cmd_table(message: types.Message):
     if not await correct_user(message):
@@ -223,7 +205,58 @@ async def cmd_table(message: types.Message):
     excel_file.close()
 
 
-dp.message.register(cmd_table, filters.Command('table'))
+@dp.message(filters.Command('add_std'))
+async def cmd_add_std(message: types.Message):
+    if not await correct_user(message):
+        return
+    data = message.text.split()
+    if len(data) != 2:
+        await message.answer('Неправильный ввод')
+        return
+    try:
+        amount = int(data[-1])
+    except ValueError:
+        await message.answer('Неправильный ввод')
+        return
+    if message.from_user.username in admins:
+        students = os.getenv('STUDENTS').split(',')
+        added_students = 0
+        for i in students:
+            id_ = database.get_chat_id(i)
+            if id_:
+                database.add_coins(id_, amount)
+                added_students += 1
+        await message.answer(
+            f'{added_students} {await agree_with_num("пользователям", added_students)} было добавлено {amount} {await agree_with_num("токенов", amount)}')
+    else:
+        await message.answer('У вас нет прав для этой команды')
+
+
+@dp.message(filters.Command('add_tch'))
+async def cmd_add_tch(message: types.Message):
+    if not await correct_user(message):
+        return
+    data = message.text.split()
+    if len(data) != 2:
+        await message.answer('Неправильный ввод')
+        return
+    try:
+        amount = int(data[-1])
+    except ValueError:
+        await message.answer('Неправильный ввод')
+        return
+    if message.from_user.username in admins:
+        students = os.getenv('TEACHERS').split(',')
+        added_teachers = 0
+        for i in students:
+            id_ = database.get_chat_id(i)
+            if id_:
+                database.add_coins(id_, amount)
+                added_teachers += 1
+        await message.answer(
+            f'{added_teachers} {await agree_with_num("пользователям", added_teachers)} было добавлено {amount} {await agree_with_num("токенов", amount)}')
+    else:
+        await message.answer('У вас нет прав для этой команды')
 
 
 async def main():
