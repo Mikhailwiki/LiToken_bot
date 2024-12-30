@@ -1,4 +1,3 @@
-import asyncio
 import io
 import qrcode
 import pymorphy3

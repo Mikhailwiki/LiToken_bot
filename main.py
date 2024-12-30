@@ -14,7 +14,6 @@ from bot.middlewares.trottling import ThrottlingMiddleware
 load_dotenv()
 nest_asyncio.apply()
 TOKEN = os.getenv('BOT_TOKEN')
-TOKEN = '7821061298:AAF429GN2d2-Gp6sxx8ZGyR7rteaMD0CIq0'
 admins = os.getenv('ADMINS').split(',')
 
 bot = Bot(token=TOKEN)
